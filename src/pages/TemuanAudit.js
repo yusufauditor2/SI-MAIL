@@ -4,6 +4,7 @@ import {
   FiPlus, 
   FiEye, 
   FiEdit3, 
+  FiTrash2,
   FiAlertTriangle, 
   FiCheckCircle,
   FiClock,
@@ -25,6 +26,9 @@ const TemuanAudit = () => {
   const [selectedLevel, setSelectedLevel] = useState('Semua Tingkat');
   const [selectedStatus, setSelectedStatus] = useState('Semua Status');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedFinding, setSelectedFinding] = useState(null);
 
   // Summary data
   const summaryData = {
@@ -42,8 +46,10 @@ const TemuanAudit = () => {
   const loadFindings = async () => {
     try {
       setLoading(true);
+      console.log('[TemuanAudit] Loading findings...');
       // Try to load from Firebase first
       const findingsData = await findingService.getAllFindings();
+      console.log('[TemuanAudit] Findings loaded:', findingsData.length);
       setFindings(findingsData);
     } catch (error) {
       console.error('Error loading findings from Firebase:', error);
@@ -100,18 +106,56 @@ const TemuanAudit = () => {
 
   const handleSaveFinding = async (findingData) => {
     try {
+      console.log('[TemuanAudit] Creating finding:', findingData);
       await findingService.createFinding(findingData);
       await loadFindings(); // Reload findings after adding new one
+      setShowAddModal(false);
+      alert('Temuan audit berhasil ditambahkan!');
     } catch (error) {
       console.error('Error saving finding to Firebase:', error);
-      // For testing purposes, add to local state
-      const newFinding = {
-        id: Date.now().toString(),
-        ...findingData,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      setFindings(prev => [...prev, newFinding]);
+      alert('Gagal menambahkan temuan: ' + error.message);
+    }
+  };
+
+  const handleViewFinding = (finding) => {
+    console.log('[TemuanAudit] Viewing finding:', finding);
+    setSelectedFinding(finding);
+    setShowViewModal(true);
+  };
+
+  const handleEditFinding = (finding) => {
+    console.log('[TemuanAudit] Editing finding:', finding);
+    setSelectedFinding(finding);
+    setShowEditModal(true);
+  };
+
+  const handleUpdateFinding = async (findingData) => {
+    try {
+      console.log('[TemuanAudit] Updating finding:', selectedFinding.id, findingData);
+      await findingService.updateFinding(selectedFinding.id, findingData);
+      await loadFindings(); // Reload findings after update
+      setShowEditModal(false);
+      setSelectedFinding(null);
+      alert('Temuan audit berhasil diperbarui!');
+    } catch (error) {
+      console.error('Error updating finding:', error);
+      alert('Gagal memperbarui temuan: ' + error.message);
+    }
+  };
+
+  const handleDeleteFinding = async (findingId) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus temuan ini?')) {
+      return;
+    }
+    
+    try {
+      console.log('[TemuanAudit] Deleting finding:', findingId);
+      await findingService.deleteFinding(findingId);
+      await loadFindings(); // Reload findings after delete
+      alert('Temuan audit berhasil dihapus!');
+    } catch (error) {
+      console.error('Error deleting finding:', error);
+      alert('Gagal menghapus temuan: ' + error.message);
     }
   };
 
@@ -181,7 +225,7 @@ const TemuanAudit = () => {
     </div>
   );
 
-  const FindingCard = ({ finding }) => (
+  const FindingCard = ({ finding, onView, onEdit, onDelete }) => (
     <div className="finding-card">
       <div className="finding-header">
         <div className="finding-title-section">
@@ -200,11 +244,26 @@ const TemuanAudit = () => {
             {finding.status}
           </span>
           <div className="action-buttons">
-            <button className="action-btn view-btn" title="Lihat Detail">
+            <button 
+              className="action-btn view-btn" 
+              title="Lihat Detail"
+              onClick={() => onView(finding)}
+            >
               <FiEye />
             </button>
-            <button className="action-btn edit-btn" title="Edit">
+            <button 
+              className="action-btn edit-btn" 
+              title="Edit"
+              onClick={() => onEdit(finding)}
+            >
               <FiEdit3 />
+            </button>
+            <button 
+              className="action-btn delete-btn" 
+              title="Hapus"
+              onClick={() => onDelete(finding.id)}
+            >
+              <FiTrash2 />
             </button>
           </div>
         </div>
@@ -331,7 +390,13 @@ const TemuanAudit = () => {
           </div>
         ) : (
           filteredFindings.map((finding) => (
-            <FindingCard key={finding.id} finding={finding} />
+            <FindingCard 
+              key={finding.id} 
+              finding={finding}
+              onView={handleViewFinding}
+              onEdit={handleEditFinding}
+              onDelete={handleDeleteFinding}
+            />
           ))
         )}
       </div>
@@ -342,6 +407,140 @@ const TemuanAudit = () => {
         onClose={() => setShowAddModal(false)}
         onSave={handleSaveFinding}
       />
+
+      {/* View Finding Modal */}
+      {showViewModal && selectedFinding && (
+        <ViewFindingModal
+          isOpen={showViewModal}
+          onClose={() => {
+            setShowViewModal(false);
+            setSelectedFinding(null);
+          }}
+          finding={selectedFinding}
+        />
+      )}
+
+      {/* Edit Finding Modal */}
+      {showEditModal && selectedFinding && (
+        <AddFindingModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedFinding(null);
+          }}
+          onSave={handleUpdateFinding}
+          initialData={selectedFinding}
+          isEditMode={true}
+        />
+      )}
+    </div>
+  );
+};
+
+// View Finding Modal Component
+const ViewFindingModal = ({ isOpen, onClose, finding }) => {
+  if (!isOpen) return null;
+
+  const formatDate = (date) => {
+    if (!date) return '-';
+    if (date.toDate) {
+      return date.toDate().toLocaleDateString('id-ID', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+    if (typeof date === 'string') {
+      return new Date(date).toLocaleDateString('id-ID', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+    return '-';
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content view-finding-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Detail Temuan Audit</h2>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        
+        <div className="modal-body">
+          <div className="view-section">
+            <label className="view-label">Judul Temuan</label>
+            <p className="view-value">{finding.title || '-'}</p>
+          </div>
+
+          <div className="view-row">
+            <div className="view-section">
+              <label className="view-label">Kategori</label>
+              <p className="view-value">
+                <span className="badge badge-info">{finding.category || '-'}</span>
+              </p>
+            </div>
+            <div className="view-section">
+              <label className="view-label">Tingkat Keparahan</label>
+              <p className="view-value">
+                <span className={`badge ${
+                  finding.severity === 'Tinggi' ? 'badge-danger' :
+                  finding.severity === 'Sedang' ? 'badge-warning' :
+                  'badge-success'
+                }`}>{finding.severity || '-'}</span>
+              </p>
+            </div>
+            <div className="view-section">
+              <label className="view-label">Status</label>
+              <p className="view-value">
+                <span className="badge badge-primary">{finding.status || '-'}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="view-section">
+            <label className="view-label">Konteks Audit</label>
+            <p className="view-value">{finding.auditContext || '-'}</p>
+          </div>
+
+          <div className="view-section">
+            <label className="view-label">Deskripsi Temuan</label>
+            <p className="view-value whitespace-pre-wrap">{finding.description || '-'}</p>
+          </div>
+
+          <div className="view-section">
+            <label className="view-label">Rekomendasi</label>
+            <p className="view-value whitespace-pre-wrap">{finding.recommendation || '-'}</p>
+          </div>
+
+          <div className="view-section">
+            <label className="view-label">Pihak Bertanggung Jawab</label>
+            <p className="view-value">{finding.responsibleParty || '-'}</p>
+          </div>
+
+          <div className="view-row">
+            <div className="view-section">
+              <label className="view-label">Tanggal Temuan</label>
+              <p className="view-value">{formatDate(finding.findingDate)}</p>
+            </div>
+            <div className="view-section">
+              <label className="view-label">Dibuat Pada</label>
+              <p className="view-value">{formatDate(finding.createdAt)}</p>
+            </div>
+            <div className="view-section">
+              <label className="view-label">Terakhir Diperbarui</label>
+              <p className="view-value">{formatDate(finding.updatedAt)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={onClose}>
+            Tutup
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

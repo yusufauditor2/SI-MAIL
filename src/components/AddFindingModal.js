@@ -8,7 +8,7 @@ import {
 import { auditService } from '../services/firebaseService';
 import './AddFindingModal.css';
 
-const AddFindingModal = ({ isOpen, onClose, onSave, audits = [] }) => {
+const AddFindingModal = ({ isOpen, onClose, onSave, audits = [], initialData = null, isEditMode = false }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -31,8 +31,47 @@ const AddFindingModal = ({ isOpen, onClose, onSave, audits = [] }) => {
   useEffect(() => {
     if (isOpen) {
       loadAvailableAudits();
+      // If edit mode, populate form with initial data
+      if (isEditMode && initialData) {
+        const findingDateValue = initialData.findingDate 
+          ? (typeof initialData.findingDate === 'string' 
+            ? initialData.findingDate 
+            : (initialData.findingDate.toDate 
+              ? initialData.findingDate.toDate().toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0]))
+          : new Date().toISOString().split('T')[0];
+
+        setFormData({
+          title: initialData.title || '',
+          description: initialData.description || '',
+          recommendation: initialData.recommendation || '',
+          severity: initialData.severity || FINDING_SEVERITY.MEDIUM,
+          category: initialData.category || FINDING_CATEGORY.COMPLIANCE,
+          status: initialData.status || FINDING_STATUS.OPEN,
+          auditContext: initialData.auditContext || '',
+          auditId: initialData.auditId || '',
+          auditTitle: initialData.auditTitle || '',
+          responsibleParty: initialData.responsibleParty || '',
+          findingDate: findingDateValue
+        });
+      } else {
+        // Reset form for add mode
+        setFormData({
+          title: '',
+          description: '',
+          recommendation: '',
+          severity: FINDING_SEVERITY.MEDIUM,
+          category: FINDING_CATEGORY.COMPLIANCE,
+          status: FINDING_STATUS.OPEN,
+          auditContext: '',
+          auditId: '',
+          auditTitle: '',
+          responsibleParty: '',
+          findingDate: new Date().toISOString().split('T')[0]
+        });
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, isEditMode, initialData]);
 
   const loadAvailableAudits = async () => {
     try {
@@ -157,7 +196,7 @@ const AddFindingModal = ({ isOpen, onClose, onSave, audits = [] }) => {
         <div className="modal-header">
           <h2>
             <FiAlertTriangle className="modal-icon" />
-            Tambah Temuan Baru
+            {isEditMode ? 'Edit Temuan Audit' : 'Tambah Temuan Baru'}
           </h2>
           <button className="close-btn" onClick={handleClose}>
             <FiX />
@@ -332,7 +371,7 @@ const AddFindingModal = ({ isOpen, onClose, onSave, audits = [] }) => {
             </button>
             <button type="submit" className="btn-primary">
               <FiSave />
-              Simpan Temuan
+              {isEditMode ? 'Perbarui Temuan' : 'Simpan Temuan'}
             </button>
           </div>
         </form>
