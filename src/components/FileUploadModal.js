@@ -92,6 +92,11 @@ const FileUploadModal = ({
   const uploadFiles = async () => {
     if (!validateForm()) return;
     
+    if (!auditId) {
+      setErrors(['Audit ID tidak ditemukan']);
+      return;
+    }
+    
     setUploading(true);
     const newProgress = {};
     
@@ -105,32 +110,57 @@ const FileUploadModal = ({
             // Validate file menggunakan Cloudinary service
             cloudinaryService.validateFile(fileItem.file);
             
-            // Upload to Cloudinary
-            const uploadResult = await cloudinaryService.uploadDocument(fileItem.file);
-            
-            // Prepare document data
-            const documentData = {
-              fileName: fileItem.file.name,
-              fileSize: fileItem.file.size,
-              fileType: fileItem.file.type,
-              fileUrl: uploadResult.secure_url,
-              publicId: uploadResult.public_id,
+            // Prepare metadata
+            const metadata = {
               title: formData.title,
               description: formData.description,
               category: formData.category,
               tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
-              uploadedBy: 'current-user', // This should come from auth context
-              uploadDate: serverTimestamp(),
-              auditId: auditId || null
+              uploadedBy: 'current-user' // This should come from auth context
             };
             
-            // Save to Firestore
-            const docRef = await addDoc(collection(db, COLLECTIONS.DOCUMENTS), documentData);
+            // Upload based on type using specialized cloudinary service methods
+            let uploadResult;
+            switch (type) {
+              case 'workPaper':
+                uploadResult = await cloudinaryService.uploadWorkPaper(auditId, fileItem.file, metadata);
+                break;
+              case 'evidence':
+                uploadResult = await cloudinaryService.uploadEvidence(auditId, fileItem.file, metadata);
+                break;
+              case 'interview':
+                uploadResult = await cloudinaryService.uploadInterviewRecording(auditId, fileItem.file, metadata);
+                break;
+              case 'note':
+                uploadResult = await cloudinaryService.uploadNoteAttachment(auditId, fileItem.file, metadata);
+                break;
+              case 'document':
+              default:
+                // For generic documents, use the original method
+                const cloudinaryResult = await cloudinaryService.uploadDocument(fileItem.file);
+                const documentData = {
+                  fileName: fileItem.file.name,
+                  fileSize: fileItem.file.size,
+                  fileType: fileItem.file.type,
+                  fileUrl: cloudinaryResult.secure_url,
+                  publicId: cloudinaryResult.public_id,
+                  title: formData.title,
+                  description: formData.description,
+                  category: formData.category,
+                  tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+                  uploadedBy: 'current-user',
+                  uploadDate: serverTimestamp(),
+                  auditId: auditId || null
+                };
+                const docRef = await addDoc(collection(db, COLLECTIONS.DOCUMENTS), documentData);
+                uploadResult = { ...cloudinaryResult, docId: docRef.id };
+                break;
+            }
             
             // Update file status
             setFiles(prev => prev.map(f => 
               f.id === fileItem.id 
-                ? { ...f, status: 'success', result: { ...uploadResult, docId: docRef.id } }
+                ? { ...f, status: 'success', result: uploadResult }
                 : f
             ));
             
@@ -148,11 +178,13 @@ const FileUploadModal = ({
         }
       }
       
-      // Check if all uploads completed successfully
-      const allSuccessful = files.every(f => f.status === 'success');
-      if (allSuccessful) {
+      // Check if any uploads were successful
+      const hasSuccessful = files.some(f => f.status === 'success');
+      if (hasSuccessful) {
         onSuccess && onSuccess();
-        onClose();
+        setTimeout(() => {
+          onClose();
+        }, 500);
       }
       
     } catch (error) {

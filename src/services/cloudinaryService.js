@@ -7,8 +7,7 @@ import {
   getDoc,
   getDocs,
   query,
-  where,
-  orderBy
+  where
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -64,6 +63,7 @@ export const cloudinaryService = {
         uploadedAt: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
+        isDeleted: false,
         // Metadata tambahan untuk tracking
         storageProvider: 'cloudinary',
         cloudinaryFolder: `auditmorowaliutara/file/audits/${auditId}/work-papers`,
@@ -72,18 +72,47 @@ export const cloudinaryService = {
         canUpdate: true
       };
       
-      // Add to Firestore dengan referensi lengkap
-      const docRef = await addDoc(collection(db, `audits/${auditId}/workPapers`), {
-        ...workPaperDoc,
-        uploadedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      // Generate unique ID for the work paper
+      const workPaperId = `workPaper-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      console.log('[CloudinaryService] Creating work paper in audit array');
+      
+      // Update audit document dengan file baru (simpan ke array field, BUKAN subcollection)
+      const auditRef = doc(db, 'audits', auditId);
+      const auditDoc = await getDoc(auditRef);
+      if (auditDoc.exists()) {
+        const auditData = auditDoc.data();
+        const currentWorkPapers = auditData.workPapers || [];
+        
+        // Add complete file data to audit document array
+        const fileData = {
+          id: workPaperId,
+          ...workPaperDoc,
+          fileName: file.name,
+          fileUrl: result.secure_url,
+          cloudinaryId: result.public_id,
+          uploadedAt: new Date(),
+          uploadedBy: workPaperData.uploadedBy || 'current-user'
+        };
+        
+        console.log('[CloudinaryService] Adding work paper to array:', fileData);
+        
+        await updateDoc(auditRef, {
+          workPapers: [...currentWorkPapers, fileData],
+          workPapersCount: (auditData.workPapersCount || 0) + 1,
+          hasWorkPapers: true,
+          lastUpdated: serverTimestamp()
+        });
+        
+        console.log('[CloudinaryService] Work paper added to audit array successfully');
+      } else {
+        throw new Error('Audit document not found');
+      }
       
       // Track file upload di collection terpisah
       await addDoc(collection(db, 'file-uploads'), {
         auditId,
-        workPaperId: docRef.id,
+        workPaperId: workPaperId,
         fileName: file.name,
         fileUrl: result.secure_url,
         fileId: result.public_id,
@@ -101,36 +130,11 @@ export const cloudinaryService = {
         lastAccessed: serverTimestamp()
       });
       
-      // Update audit document dengan referensi file
-      const auditRef = doc(db, 'audits', auditId);
-      const auditDoc = await getDoc(auditRef);
-      if (auditDoc.exists()) {
-        const auditData = auditDoc.data();
-        const currentWorkPapers = auditData.workPapers || [];
-        
-        // Add file reference to audit document
-        const fileReference = {
-          id: docRef.id,
-          fileName: file.name,
-          fileUrl: result.secure_url,
-          cloudinaryId: result.public_id,
-          uploadedAt: new Date(),
-          uploadedBy: workPaperData.uploadedBy || 'current-user'
-        };
-        
-        await updateDoc(auditRef, {
-          workPapers: [...currentWorkPapers, fileReference],
-          workPapersCount: (auditData.workPapersCount || 0) + 1,
-          hasWorkPapers: true,
-          lastUpdated: serverTimestamp()
-        });
-      }
-      
       return {
-        id: docRef.id,
+        id: workPaperId,
         ...workPaperDoc,
         downloadURL: result.secure_url,
-        firestoreId: docRef.id
+        firestoreId: workPaperId
       };
     } catch (error) {
       console.error('Error uploading work paper:', error);
@@ -178,6 +182,7 @@ export const cloudinaryService = {
         verified: false,
         createdAt: new Date(),
         updatedAt: new Date(),
+        isDeleted: false,
         storageProvider: 'cloudinary',
         cloudinaryFolder: `auditmorowaliutara/file/audits/${auditId}/evidence`,
         downloadUrl: result.secure_url,
@@ -185,17 +190,47 @@ export const cloudinaryService = {
         canUpdate: true
       };
       
-      const docRef = await addDoc(collection(db, `audits/${auditId}/evidence`), {
-        ...evidenceDoc,
-        uploadedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      // Generate unique ID for the evidence
+      const evidenceId = `evidence-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      console.log('[CloudinaryService] Creating evidence in audit array');
+      
+      // Update audit document dengan file baru (simpan ke array field, BUKAN subcollection)
+      const auditRef = doc(db, 'audits', auditId);
+      const auditDoc = await getDoc(auditRef);
+      if (auditDoc.exists()) {
+        const auditData = auditDoc.data();
+        const currentEvidence = auditData.evidence || [];
+        
+        // Add complete file data to audit document array
+        const fileData = {
+          id: evidenceId,
+          ...evidenceDoc,
+          fileName: file.name,
+          fileUrl: result.secure_url,
+          cloudinaryId: result.public_id,
+          uploadedAt: new Date(),
+          uploadedBy: evidenceData.uploadedBy || 'current-user'
+        };
+        
+        console.log('[CloudinaryService] Adding evidence to array:', fileData);
+        
+        await updateDoc(auditRef, {
+          evidence: [...currentEvidence, fileData],
+          evidenceCount: (auditData.evidenceCount || 0) + 1,
+          hasEvidence: true,
+          lastUpdated: serverTimestamp()
+        });
+        
+        console.log('[CloudinaryService] Evidence added to audit array successfully');
+      } else {
+        throw new Error('Audit document not found');
+      }
       
       // Track file upload
       await addDoc(collection(db, 'file-uploads'), {
         auditId,
-        evidenceId: docRef.id,
+        evidenceId: evidenceId,
         fileName: file.name,
         fileUrl: result.secure_url,
         fileId: result.public_id,
@@ -213,36 +248,11 @@ export const cloudinaryService = {
         lastAccessed: serverTimestamp()
       });
       
-      // Update audit document dengan referensi file
-      const auditRef = doc(db, 'audits', auditId);
-      const auditDoc = await getDoc(auditRef);
-      if (auditDoc.exists()) {
-        const auditData = auditDoc.data();
-        const currentEvidence = auditData.evidence || [];
-        
-        // Add file reference to audit document
-        const fileReference = {
-          id: docRef.id,
-          fileName: file.name,
-          fileUrl: result.secure_url,
-          cloudinaryId: result.public_id,
-          uploadedAt: new Date(),
-          uploadedBy: evidenceData.uploadedBy || 'current-user'
-        };
-        
-        await updateDoc(auditRef, {
-          evidence: [...currentEvidence, fileReference],
-          evidenceCount: (auditData.evidenceCount || 0) + 1,
-          hasEvidence: true,
-          lastUpdated: serverTimestamp()
-        });
-      }
-      
       return {
-        id: docRef.id,
+        id: evidenceId,
         ...evidenceDoc,
         downloadURL: result.secure_url,
-        firestoreId: docRef.id
+        firestoreId: evidenceId
       };
     } catch (error) {
       console.error('Error uploading evidence:', error);
@@ -289,45 +299,51 @@ export const cloudinaryService = {
         uploadedBy: interviewData.uploadedBy || 'current-user',
         uploadedAt: new Date(),
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        isDeleted: false
       };
       
-      const docRef = await addDoc(collection(db, `audits/${auditId}/interviews`), {
-        ...interviewDoc,
-        uploadedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      // Generate unique ID for the interview
+      const interviewId = `interview-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
-      // Update audit document dengan referensi file
+      console.log('[CloudinaryService] Creating interview in audit array');
+      
+      // Update audit document dengan file baru (simpan ke array field, BUKAN subcollection)
       const auditRef = doc(db, 'audits', auditId);
       const auditDoc = await getDoc(auditRef);
       if (auditDoc.exists()) {
         const auditData = auditDoc.data();
         const currentInterviews = auditData.interviews || [];
         
-        // Add file reference to audit document
-        const fileReference = {
-          id: docRef.id,
-          fileName: file.name,
-          fileUrl: result.secure_url,
+        // Add complete file data to audit document array
+        const fileData = {
+          id: interviewId,
+          ...interviewDoc,
+          recordingFileName: file.name,
+          recordingUrl: result.secure_url,
           cloudinaryId: result.public_id,
           uploadedAt: new Date(),
           uploadedBy: interviewData.uploadedBy || 'current-user'
         };
         
+        console.log('[CloudinaryService] Adding interview to array:', fileData);
+        
         await updateDoc(auditRef, {
-          interviews: [...currentInterviews, fileReference],
+          interviews: [...currentInterviews, fileData],
           interviewsCount: (auditData.interviewsCount || 0) + 1,
           hasInterviews: true,
           lastUpdated: serverTimestamp()
         });
+        
+        console.log('[CloudinaryService] Interview added to audit array successfully');
+      } else {
+        throw new Error('Audit document not found');
       }
       
       // Track file upload
       await addDoc(collection(db, 'file-uploads'), {
         auditId,
-        interviewId: docRef.id,
+        interviewId: interviewId,
         fileName: file.name,
         fileUrl: result.secure_url,
         fileId: result.public_id,
@@ -345,10 +361,10 @@ export const cloudinaryService = {
       });
       
       return {
-        id: docRef.id,
+        id: interviewId,
         ...interviewDoc,
         downloadURL: result.secure_url,
-        firestoreId: docRef.id
+        firestoreId: interviewId
       };
     } catch (error) {
       console.error('Error uploading interview recording:', error);
@@ -459,6 +475,14 @@ export const cloudinaryService = {
       
       const noteDoc = {
         ...noteData,
+        fileName: file.name,
+        fileUrl: result.secure_url,
+        fileId: result.public_id,
+        cloudinaryId: result.public_id,
+        cloudinaryUrl: result.secure_url,
+        cloudinaryPublicId: result.public_id,
+        fileSize: file.size,
+        fileType: file.type,
         attachments: [{
           fileName: file.name,
           fileUrl: result.secure_url,
@@ -469,30 +493,34 @@ export const cloudinaryService = {
           fileType: file.type,
           uploadedAt: new Date()
         }],
+        uploadedBy: noteData.uploadedBy || 'current-user',
+        uploadedAt: new Date(),
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        isDeleted: false,
+        storageProvider: 'cloudinary',
+        cloudinaryFolder: `auditmorowaliutara/file/audits/${auditId}/notes`,
+        downloadUrl: result.secure_url,
+        canDownload: true,
+        canUpdate: true
       };
       
-      const docRef = await addDoc(collection(db, `audits/${auditId}/notes`), {
-        ...noteDoc,
-        attachments: [{
-          ...noteDoc.attachments[0],
-          uploadedAt: new Date()
-        }],
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      console.log('[CloudinaryService] Creating note in audit array:', noteDoc);
       
-      // Update audit document dengan referensi file
+      // Generate unique ID for the note
+      const noteId = `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Update audit document dengan file baru (simpan ke array field, BUKAN subcollection)
       const auditRef = doc(db, 'audits', auditId);
       const auditDoc = await getDoc(auditRef);
       if (auditDoc.exists()) {
         const auditData = auditDoc.data();
         const currentNotes = auditData.notes || [];
         
-        // Add file reference to audit document
-        const fileReference = {
-          id: docRef.id,
+        // Add complete file data to audit document array
+        const fileData = {
+          id: noteId,
+          ...noteDoc,
           fileName: file.name,
           fileUrl: result.secure_url,
           cloudinaryId: result.public_id,
@@ -500,18 +528,24 @@ export const cloudinaryService = {
           uploadedBy: noteData.uploadedBy || 'current-user'
         };
         
+        console.log('[CloudinaryService] Adding note to array:', fileData);
+        
         await updateDoc(auditRef, {
-          notes: [...currentNotes, fileReference],
+          notes: [...currentNotes, fileData],
           notesCount: (auditData.notesCount || 0) + 1,
           hasNotes: true,
           lastUpdated: serverTimestamp()
         });
+        
+        console.log('[CloudinaryService] Note added to audit array successfully');
+      } else {
+        throw new Error('Audit document not found');
       }
       
       // Track file upload
       await addDoc(collection(db, 'file-uploads'), {
         auditId,
-        noteId: docRef.id,
+        noteId: noteId,
         fileName: file.name,
         fileUrl: result.secure_url,
         fileId: result.public_id,
@@ -529,10 +563,10 @@ export const cloudinaryService = {
       });
       
       return {
-        id: docRef.id,
+        id: noteId,
         ...noteDoc,
         downloadURL: result.secure_url,
-        firestoreId: docRef.id
+        firestoreId: noteId
       };
     } catch (error) {
       console.error('Error uploading note attachment:', error);
@@ -632,34 +666,61 @@ export const cloudinaryService = {
     }
   },
 
-  // Delete file dari Cloudinary dan Firestore
+  // Delete file dari Cloudinary dan Firestore (from array fields)
   async deleteFile(auditId, fileType, fileId) {
     try {
-      // Get file info from Firestore first
-      let collectionName;
+      console.log(`[CloudinaryService] Deleting file: ${fileId} from ${fileType}`);
+      
+      // Get audit document to access array fields
+      const auditRef = doc(db, 'audits', auditId);
+      const auditDoc = await getDoc(auditRef);
+      
+      if (!auditDoc.exists()) {
+        throw new Error('Audit document not found');
+      }
+      
+      const auditData = auditDoc.data();
+      
+      // Determine array field name
+      let arrayFieldName;
+      let countFieldName;
+      let hasFieldName;
       switch (fileType) {
         case 'workPaper':
-          collectionName = 'workPapers';
+          arrayFieldName = 'workPapers';
+          countFieldName = 'workPapersCount';
+          hasFieldName = 'hasWorkPapers';
           break;
         case 'evidence':
-          collectionName = 'evidence';
+          arrayFieldName = 'evidence';
+          countFieldName = 'evidenceCount';
+          hasFieldName = 'hasEvidence';
           break;
         case 'interview':
-          collectionName = 'interviews';
+          arrayFieldName = 'interviews';
+          countFieldName = 'interviewsCount';
+          hasFieldName = 'hasInterviews';
           break;
         case 'note':
-          collectionName = 'notes';
+          arrayFieldName = 'notes';
+          countFieldName = 'notesCount';
+          hasFieldName = 'hasNotes';
           break;
         default:
           throw new Error('Invalid file type');
       }
       
-      const fileDoc = await getDoc(doc(db, `audits/${auditId}/${collectionName}`, fileId));
-      if (!fileDoc.exists()) {
-        throw new Error('File not found in Firestore');
+      // Get current files array
+      const filesArray = auditData[arrayFieldName] || [];
+      
+      // Find the file to delete
+      const fileData = filesArray.find(f => f.id === fileId);
+      if (!fileData) {
+        throw new Error('File not found in array');
       }
       
-      const fileData = fileDoc.data();
+      console.log('[CloudinaryService] File found:', fileData);
+      
       const cloudinaryId = fileData.cloudinaryId;
       
       if (cloudinaryId) {
@@ -708,51 +769,23 @@ export const cloudinaryService = {
         }
       }
       
-      // Delete from Firestore
-      await updateDoc(doc(db, `audits/${auditId}/${collectionName}`, fileId), {
-        deletedAt: serverTimestamp(),
-        isDeleted: true
-      });
+      // Remove file from array
+      const updatedFilesArray = filesArray.filter(f => f.id !== fileId);
       
-      // Update audit document counts dan hapus referensi file
-      const auditRef = doc(db, 'audits', auditId);
-      const auditDoc = await getDoc(auditRef);
-      if (auditDoc.exists()) {
-        const auditData = auditDoc.data();
-        const updateData = {};
-        
-        switch (fileType) {
-          case 'workPaper':
-            const updatedWorkPapers = (auditData.workPapers || []).filter(wp => wp.id !== fileId);
-            updateData.workPapers = updatedWorkPapers;
-            updateData.workPapersCount = Math.max(0, (auditData.workPapersCount || 0) - 1);
-            updateData.hasWorkPapers = updatedWorkPapers.length > 0;
-            break;
-          case 'evidence':
-            const updatedEvidence = (auditData.evidence || []).filter(ev => ev.id !== fileId);
-            updateData.evidence = updatedEvidence;
-            updateData.evidenceCount = Math.max(0, (auditData.evidenceCount || 0) - 1);
-            updateData.hasEvidence = updatedEvidence.length > 0;
-            break;
-          case 'interview':
-            const updatedInterviews = (auditData.interviews || []).filter(int => int.id !== fileId);
-            updateData.interviews = updatedInterviews;
-            updateData.interviewsCount = Math.max(0, (auditData.interviewsCount || 0) - 1);
-            updateData.hasInterviews = updatedInterviews.length > 0;
-            break;
-          case 'note':
-            const updatedNotes = (auditData.notes || []).filter(note => note.id !== fileId);
-            updateData.notes = updatedNotes;
-            updateData.notesCount = Math.max(0, (auditData.notesCount || 0) - 1);
-            updateData.hasNotes = updatedNotes.length > 0;
-            break;
-        }
-        
-        if (Object.keys(updateData).length > 0) {
-          updateData.lastUpdated = serverTimestamp();
-          await updateDoc(auditRef, updateData);
-        }
-      }
+      // Prepare update data
+      const updateData = {
+        [arrayFieldName]: updatedFilesArray,
+        [countFieldName]: Math.max(0, (auditData[countFieldName] || 0) - 1),
+        [hasFieldName]: updatedFilesArray.length > 0,
+        lastUpdated: serverTimestamp()
+      };
+      
+      console.log('[CloudinaryService] Updating audit with:', updateData);
+      
+      // Update audit document
+      await updateDoc(auditRef, updateData);
+      
+      console.log('[CloudinaryService] File deleted successfully');
       
       return { success: true };
     } catch (error) {
@@ -764,6 +797,12 @@ export const cloudinaryService = {
   // Get all files for an audit
   async getAuditFiles(auditId) {
     try {
+      console.log(`[CloudinaryService] Getting files for audit: ${auditId}`);
+      
+      // Get audit document first to read array fields
+      const auditRef = doc(db, 'audits', auditId);
+      const auditDoc = await getDoc(auditRef);
+      
       const files = {
         workPapers: [],
         evidence: [],
@@ -771,151 +810,29 @@ export const cloudinaryService = {
         notes: []
       };
       
-      // Get work papers - use orderBy on isDeleted first, then uploadedAt
-      try {
-        const workPapersQuery = query(
-          collection(db, `audits/${auditId}/workPapers`),
-          orderBy('isDeleted', 'asc'),
-          orderBy('uploadedAt', 'desc')
-        );
-        const workPapersSnapshot = await getDocs(workPapersQuery);
-        files.workPapers = workPapersSnapshot.docs
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }))
-          .filter(file => !file.isDeleted); // Filter in memory as backup
-      } catch (error) {
-        console.warn('Error loading work papers:', error);
-        // Fallback: try without orderBy
-        try {
-          const workPapersSnapshot = await getDocs(collection(db, `audits/${auditId}/workPapers`));
-          files.workPapers = workPapersSnapshot.docs
-            .map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }))
-            .filter(file => !file.isDeleted)
-            .sort((a, b) => {
-              const dateA = a.uploadedAt?.toDate?.() || a.uploadedAt || new Date(0);
-              const dateB = b.uploadedAt?.toDate?.() || b.uploadedAt || new Date(0);
-              return dateB - dateA;
-            });
-        } catch (fallbackError) {
-          console.warn('Fallback query also failed:', fallbackError);
-          files.workPapers = [];
-        }
+      if (auditDoc.exists()) {
+        const auditData = auditDoc.data();
+        console.log('[CloudinaryService] Audit document data:', auditData);
+        
+        // Read from array fields in audit document (NOT subcollections)
+        files.workPapers = auditData.workPapers || [];
+        files.evidence = auditData.evidence || [];
+        files.interviews = auditData.interviews || [];
+        files.notes = auditData.notes || [];
+        
+        console.log('[CloudinaryService] Files from audit document arrays:', {
+          workPapers: files.workPapers.length,
+          evidence: files.evidence.length,
+          interviews: files.interviews.length,
+          notes: files.notes.length
+        });
+        
+        // Return early with array data
+        return files;
+      } else {
+        console.warn('[CloudinaryService] Audit document not found:', auditId);
+        return files;
       }
-      
-      // Get evidence
-      try {
-        const evidenceQuery = query(
-          collection(db, `audits/${auditId}/evidence`),
-          orderBy('isDeleted', 'asc'),
-          orderBy('uploadedAt', 'desc')
-        );
-        const evidenceSnapshot = await getDocs(evidenceQuery);
-        files.evidence = evidenceSnapshot.docs
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }))
-          .filter(file => !file.isDeleted);
-      } catch (error) {
-        console.warn('Error loading evidence:', error);
-        // Fallback: try without orderBy
-        try {
-          const evidenceSnapshot = await getDocs(collection(db, `audits/${auditId}/evidence`));
-          files.evidence = evidenceSnapshot.docs
-            .map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }))
-            .filter(file => !file.isDeleted)
-            .sort((a, b) => {
-              const dateA = a.uploadedAt?.toDate?.() || a.uploadedAt || new Date(0);
-              const dateB = b.uploadedAt?.toDate?.() || b.uploadedAt || new Date(0);
-              return dateB - dateA;
-            });
-        } catch (fallbackError) {
-          console.warn('Fallback query also failed:', fallbackError);
-          files.evidence = [];
-        }
-      }
-      
-      // Get interviews
-      try {
-        const interviewsQuery = query(
-          collection(db, `audits/${auditId}/interviews`),
-          orderBy('isDeleted', 'asc'),
-          orderBy('uploadedAt', 'desc')
-        );
-        const interviewsSnapshot = await getDocs(interviewsQuery);
-        files.interviews = interviewsSnapshot.docs
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }))
-          .filter(file => !file.isDeleted);
-      } catch (error) {
-        console.warn('Error loading interviews:', error);
-        // Fallback: try without orderBy
-        try {
-          const interviewsSnapshot = await getDocs(collection(db, `audits/${auditId}/interviews`));
-          files.interviews = interviewsSnapshot.docs
-            .map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }))
-            .filter(file => !file.isDeleted)
-            .sort((a, b) => {
-              const dateA = a.uploadedAt?.toDate?.() || a.uploadedAt || new Date(0);
-              const dateB = b.uploadedAt?.toDate?.() || b.uploadedAt || new Date(0);
-              return dateB - dateA;
-            });
-        } catch (fallbackError) {
-          console.warn('Fallback query also failed:', fallbackError);
-          files.interviews = [];
-        }
-      }
-      
-      // Get notes
-      try {
-        const notesQuery = query(
-          collection(db, `audits/${auditId}/notes`),
-          orderBy('isDeleted', 'asc'),
-          orderBy('uploadedAt', 'desc')
-        );
-        const notesSnapshot = await getDocs(notesQuery);
-        files.notes = notesSnapshot.docs
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }))
-          .filter(file => !file.isDeleted);
-      } catch (error) {
-        console.warn('Error loading notes:', error);
-        // Fallback: try without orderBy
-        try {
-          const notesSnapshot = await getDocs(collection(db, `audits/${auditId}/notes`));
-          files.notes = notesSnapshot.docs
-            .map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }))
-            .filter(file => !file.isDeleted)
-            .sort((a, b) => {
-              const dateA = a.uploadedAt?.toDate?.() || a.uploadedAt || new Date(0);
-              const dateB = b.uploadedAt?.toDate?.() || b.uploadedAt || new Date(0);
-              return dateB - dateA;
-            });
-        } catch (fallbackError) {
-          console.warn('Fallback query also failed:', fallbackError);
-          files.notes = [];
-        }
-      }
-      
-      return files;
     } catch (error) {
       console.error('Error getting audit files:', error);
       throw error;

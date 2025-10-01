@@ -256,18 +256,6 @@ const TemuanAudit = () => {
       {/* Summary Cards */}
       <div className="summary-section">
         <SummaryCard 
-          title="Total Temuan" 
-          value={summaryData.total} 
-          icon={FiAlertTriangle} 
-          color="#6c757d"
-        />
-        <SummaryCard 
-          title="Terbuka" 
-          value={summaryData.open} 
-          icon={FiAlertTriangle} 
-          color="#dc3545"
-        />
-        <SummaryCard 
           title="Dalam Proses" 
           value={summaryData.inProgress} 
           icon={FiClock} 

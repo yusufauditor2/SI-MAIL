@@ -531,7 +531,7 @@ const Laporan = () => {
       const auditDetailsData = [
         ['DETAIL AUDIT'],
         [''],
-        ['No', 'Audit ID', 'Judul', 'Unit', 'Jenis', 'Prioritas', 'Tanggal Mulai', 'Tanggal Selesai', 'Auditor', 'Status', 'Temuan', 'Progress']
+        ['No', 'Audit ID', 'Judul', 'Unit', 'Jenis', 'Prioritas', 'Tanggal Mulai', 'Tanggal Selesai', 'Auditor', 'Tim Audit', 'Status', 'Temuan', 'Progress']
       ];
       
       if (reportData.auditIds && reportData.auditIds.length > 0) {
@@ -542,6 +542,17 @@ const Laporan = () => {
           const auditId = reportData.auditIds[i];
           try {
             const auditDetails = await auditService.getAuditById(auditId);
+            
+            // Format team members for display
+            let teamDisplay = 'Tidak ada tim';
+            if (auditDetails?.team && auditDetails.team.length > 0) {
+              const leader = auditDetails.team.find(m => m.role === 'Ketua Tim');
+              const memberCount = auditDetails.team.length;
+              teamDisplay = leader 
+                ? `${leader.name} (Ketua) + ${memberCount - 1} anggota`
+                : `${memberCount} anggota`;
+            }
+            
             auditDetailsData.push([
               i + 1,
               auditId,
@@ -552,6 +563,7 @@ const Laporan = () => {
               auditDetails?.startDate || 'Tidak tersedia',
               auditDetails?.endDate || 'Tidak tersedia',
               auditDetails?.auditor || 'Tidak tersedia',
+              teamDisplay,
               auditDetails?.status || 'Tidak tersedia',
               auditDetails?.findingsCount || 0,
               `${auditDetails?.progress || 0}%`
@@ -570,12 +582,13 @@ const Laporan = () => {
               'N/A',
               'N/A',
               'N/A',
+              'N/A',
               'N/A'
             ]);
           }
         }
       } else {
-        auditDetailsData.push(['Tidak ada data audit tersedia', '', '', '', '', '', '', '', '', '', '', '']);
+        auditDetailsData.push(['Tidak ada data audit tersedia', '', '', '', '', '', '', '', '', '', '', '', '']);
       }
       
       const auditDetailsSheet = XLSX.utils.aoa_to_sheet(auditDetailsData);
@@ -591,6 +604,7 @@ const Laporan = () => {
         { wch: 14 },
         { wch: 14 },
         { wch: 20 },
+        { wch: 25 },
         { wch: 14 },
         { wch: 10 },
         { wch: 10 }
@@ -675,40 +689,88 @@ const Laporan = () => {
       });
       
       // 1. Summary Sheet
+      const teamSummary = auditDetails?.team && auditDetails.team.length > 0
+        ? (() => {
+            const leader = auditDetails.team.find(m => m.role === 'Ketua Tim');
+            const members = auditDetails.team.filter(m => m.role !== 'Ketua Tim');
+            return `Ketua Tim: ${leader?.name || '-'}, Anggota: ${members.map(m => m.name).join(', ') || '-'}`;
+          })()
+        : 'Tidak tersedia';
+
+      // Format period dari audit details
+      const periodDisplay = auditDetails?.period || 
+        (auditDetails?.startDate && auditDetails?.endDate 
+          ? `${new Date(auditDetails.startDate.toDate?.() || auditDetails.startDate).toLocaleDateString('id-ID')} s/d ${new Date(auditDetails.endDate.toDate?.() || auditDetails.endDate).toLocaleDateString('id-ID')}`
+          : 'Tidak tersedia');
+
       const summaryData = [
         ['LAPORAN AUDIT SPESIFIK'],
         ['INSPEKTORAT KABUPATEN MOROWALI UTARA'],
         [''],
-        ['Tanggal', currentDate],
+        ['Tanggal Laporan', currentDate],
         ['Status Laporan', reportData.status || 'Draft'],
         [''],
+        ['═══════════════════════════════════════════════════════════════'],
         ['INFORMASI AUDIT'],
+        ['═══════════════════════════════════════════════════════════════'],
+        ['Judul Audit', auditDetails?.title || 'Tidak tersedia'],
+        ['Unit Auditee', auditDetails?.department || 'Tidak tersedia'],
+        ['Jenis Audit', auditDetails?.type || 'Tidak tersedia'],
+        ['Status Audit', auditDetails?.status || 'Tidak tersedia'],
+        ['Prioritas', auditDetails?.priority || 'Tidak tersedia'],
+        ['Tingkat Risiko', auditDetails?.riskLevel || 'Tidak tersedia'],
+        ['Periode Pelaksanaan', periodDisplay],
+        ['Progress Penyelesaian', `${auditDetails?.progress || 0}%`],
+        ['Anggaran', auditDetails?.budget ? `Rp ${auditDetails.budget.toLocaleString('id-ID')}` : 'Tidak tersedia'],
         [''],
-        ['Judul', reportData.auditTitle || 'Tidak tersedia'],
-        ['Deskripsi', reportData.auditDescription || 'Tidak tersedia'],
-        ['Department', reportData.auditDepartment || 'Tidak tersedia'],
-        ['Jenis Audit', reportData.auditType || 'Tidak tersedia'],
-        ['Status', reportData.auditStatus || 'Tidak tersedia'],
-        ['Prioritas', reportData.auditPriority || 'Tidak tersedia'],
-        ['Periode', reportData.period || 'Tidak tersedia'],
+        ['Deskripsi'],
+        [auditDetails?.description || 'Tidak tersedia'],
         [''],
-        ['DETAIL TAMBAHAN'],
+        ['Ruang Lingkup (Scope)'],
+        [auditDetails?.scope || 'Tidak tersedia'],
         [''],
-        ['Auditor', auditDetails?.auditor || 'Tidak tersedia'],
-        ['Tim Audit', auditDetails?.team ? auditDetails.team.map(member => member.name).join(', ') : 'Tidak tersedia'],
-        ['Progress', `${auditDetails?.progress || 0}%`],
+        ['Tujuan (Objectives)'],
+        [auditDetails?.objectives || 'Tidak tersedia'],
         [''],
-        ['KESIMPULAN'],
+        ['═══════════════════════════════════════════════════════════════'],
+        ['TIM AUDIT'],
+        ['═══════════════════════════════════════════════════════════════'],
+        ['Auditor Penanggung Jawab', auditDetails?.auditor || 'Tidak tersedia'],
+        ['Jumlah Anggota Tim', auditDetails?.team?.length || 0],
+        ['Tim', teamSummary],
         [''],
-        [`Total Temuan: ${findings.length}`],
+        ['═══════════════════════════════════════════════════════════════'],
+        ['DOKUMENTASI AUDIT'],
+        ['═══════════════════════════════════════════════════════════════'],
+        ['Total Kertas Kerja', auditDetails?.workPapersCount || 0],
+        ['Total Bukti Audit', auditDetails?.evidenceCount || 0],
+        ['Total Wawancara', auditDetails?.interviewsCount || 0],
+        ['Total Catatan', auditDetails?.notesCount || 0],
+        ['Total Dokumentasi', (auditDetails?.workPapersCount || 0) + (auditDetails?.evidenceCount || 0) + (auditDetails?.interviewsCount || 0) + (auditDetails?.notesCount || 0)],
         [''],
-        ['Rekomendasi:'],
+        ['═══════════════════════════════════════════════════════════════'],
+        ['TEMUAN AUDIT'],
+        ['═══════════════════════════════════════════════════════════════'],
+        ['Total Temuan', findings.length],
+        ['Temuan Kritis', findings.filter(f => f.severity === 'Kritis').length],
+        ['Temuan Tinggi', findings.filter(f => f.severity === 'Tinggi').length],
+        ['Temuan Sedang', findings.filter(f => f.severity === 'Sedang').length],
+        ['Temuan Rendah', findings.filter(f => f.severity === 'Rendah').length],
+        [''],
+        ['═══════════════════════════════════════════════════════════════'],
+        ['REKOMENDASI'],
+        ['═══════════════════════════════════════════════════════════════'],
         ['1. Segera menindaklanjuti temuan dengan prioritas tinggi'],
         ['2. Melakukan monitoring berkala terhadap implementasi rekomendasi'],
         ['3. Meningkatkan sistem kontrol internal'],
+        ['4. Dokumentasi semua tindak lanjut yang telah dilakukan'],
         [''],
-        ['Laporan ini dibuat secara otomatis oleh sistem Si-MAIL'],
-        ['Inspektorat Kabupaten Morowali Utara']
+        ['═══════════════════════════════════════════════════════════════'],
+        [''],
+        ['Laporan ini dibuat secara otomatis oleh Sistem Si-MAIL'],
+        ['Inspektorat Kabupaten Morowali Utara'],
+        [''],
+        ['Dicetak pada:', new Date().toLocaleString('id-ID')]
       ];
       
       const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
@@ -721,7 +783,54 @@ const Laporan = () => {
       
       XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan');
       
-      // 2. Findings Sheet
+      // 2. Team Sheet
+      const teamData = [
+        ['TIM AUDIT'],
+        [''],
+        ['No', 'Nama', 'Email', 'Posisi', 'Departemen', 'Role dalam Tim']
+      ];
+      
+      if (auditDetails?.team && auditDetails.team.length > 0) {
+        auditDetails.team.forEach((member, index) => {
+          teamData.push([
+            index + 1,
+            member.name || 'Tidak tersedia',
+            member.email || 'Tidak tersedia',
+            member.position || 'Auditor',
+            member.department || 'Tidak tersedia',
+            member.role || 'Anggota Tim'
+          ]);
+        });
+        
+        // Add summary
+        teamData.push(['']);
+        teamData.push(['RINGKASAN TIM']);
+        teamData.push(['Total Anggota', auditDetails.team.length]);
+        
+        const leader = auditDetails.team.find(m => m.role === 'Ketua Tim');
+        teamData.push(['Ketua Tim', leader?.name || 'Belum ditentukan']);
+        
+        const members = auditDetails.team.filter(m => m.role !== 'Ketua Tim');
+        teamData.push(['Jumlah Anggota', members.length]);
+      } else {
+        teamData.push(['Tidak ada data tim audit', '', '', '', '', '']);
+      }
+      
+      const teamSheet = XLSX.utils.aoa_to_sheet(teamData);
+      
+      // Set column widths for team sheet
+      teamSheet['!cols'] = [
+        { wch: 5 },
+        { wch: 25 },
+        { wch: 30 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 15 }
+      ];
+      
+      XLSX.utils.book_append_sheet(workbook, teamSheet, 'Tim Audit');
+      
+      // 3. Findings Sheet
       const findingsData = [
         ['TEMUAN AUDIT'],
         [''],
@@ -759,7 +868,7 @@ const Laporan = () => {
       
       XLSX.utils.book_append_sheet(workbook, findingsSheet, 'Temuan Audit');
       
-      // 3. Statistics Sheet
+      // 4. Statistics Sheet
       const statisticsData = [
         ['STATISTIK TEMUAN'],
         [''],
@@ -787,6 +896,174 @@ const Laporan = () => {
       ];
       
       XLSX.utils.book_append_sheet(workbook, statisticsSheet, 'Statistik');
+      
+      // 5. Work Papers Sheet (Kertas Kerja)
+      const workPapersData = [
+        ['KERTAS KERJA'],
+        [''],
+        ['No', 'Nama File', 'Ukuran', 'Tanggal Upload', 'Diupload Oleh', 'Deskripsi']
+      ];
+      
+      if (auditDetails?.workPapers && auditDetails.workPapers.length > 0) {
+        auditDetails.workPapers.forEach((wp, index) => {
+          const fileSize = wp.fileSize ? `${(wp.fileSize / 1024).toFixed(2)} KB` : '-';
+          const uploadDate = wp.uploadedAt ? new Date(wp.uploadedAt.toDate?.() || wp.uploadedAt).toLocaleDateString('id-ID', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : '-';
+          
+          workPapersData.push([
+            index + 1,
+            wp.fileName || wp.title || 'Tanpa nama',
+            fileSize,
+            uploadDate,
+            wp.uploadedBy || '-',
+            wp.description || '-'
+          ]);
+        });
+      } else {
+        workPapersData.push(['Tidak ada data kertas kerja', '', '', '', '', '']);
+      }
+      
+      const workPapersSheet = XLSX.utils.aoa_to_sheet(workPapersData);
+      workPapersSheet['!cols'] = [
+        { wch: 5 },
+        { wch: 35 },
+        { wch: 12 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 40 }
+      ];
+      XLSX.utils.book_append_sheet(workbook, workPapersSheet, 'Kertas Kerja');
+      
+      // 6. Evidence Sheet (Bukti Audit)
+      const evidenceData = [
+        ['BUKTI AUDIT'],
+        [''],
+        ['No', 'Nama File', 'Ukuran', 'Tanggal Upload', 'Diupload Oleh', 'Deskripsi']
+      ];
+      
+      if (auditDetails?.evidence && auditDetails.evidence.length > 0) {
+        auditDetails.evidence.forEach((ev, index) => {
+          const fileSize = ev.fileSize ? `${(ev.fileSize / 1024).toFixed(2)} KB` : '-';
+          const uploadDate = ev.uploadedAt ? new Date(ev.uploadedAt.toDate?.() || ev.uploadedAt).toLocaleDateString('id-ID', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : '-';
+          
+          evidenceData.push([
+            index + 1,
+            ev.fileName || ev.title || 'Tanpa nama',
+            fileSize,
+            uploadDate,
+            ev.uploadedBy || '-',
+            ev.description || '-'
+          ]);
+        });
+      } else {
+        evidenceData.push(['Tidak ada data bukti audit', '', '', '', '', '']);
+      }
+      
+      const evidenceSheet = XLSX.utils.aoa_to_sheet(evidenceData);
+      evidenceSheet['!cols'] = [
+        { wch: 5 },
+        { wch: 35 },
+        { wch: 12 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 40 }
+      ];
+      XLSX.utils.book_append_sheet(workbook, evidenceSheet, 'Bukti Audit');
+      
+      // 7. Interviews Sheet (Wawancara)
+      const interviewsData = [
+        ['WAWANCARA'],
+        [''],
+        ['No', 'Nama File', 'Ukuran', 'Tanggal Upload', 'Diupload Oleh', 'Deskripsi']
+      ];
+      
+      if (auditDetails?.interviews && auditDetails.interviews.length > 0) {
+        auditDetails.interviews.forEach((iv, index) => {
+          const fileSize = iv.recordingSize ? `${(iv.recordingSize / 1024).toFixed(2)} KB` : '-';
+          const uploadDate = iv.uploadedAt ? new Date(iv.uploadedAt.toDate?.() || iv.uploadedAt).toLocaleDateString('id-ID', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : '-';
+          
+          interviewsData.push([
+            index + 1,
+            iv.recordingFileName || iv.title || 'Tanpa nama',
+            fileSize,
+            uploadDate,
+            iv.uploadedBy || '-',
+            iv.description || '-'
+          ]);
+        });
+      } else {
+        interviewsData.push(['Tidak ada data wawancara', '', '', '', '', '']);
+      }
+      
+      const interviewsSheet = XLSX.utils.aoa_to_sheet(interviewsData);
+      interviewsSheet['!cols'] = [
+        { wch: 5 },
+        { wch: 35 },
+        { wch: 12 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 40 }
+      ];
+      XLSX.utils.book_append_sheet(workbook, interviewsSheet, 'Wawancara');
+      
+      // 8. Notes Sheet (Catatan)
+      const notesData = [
+        ['CATATAN AUDIT'],
+        [''],
+        ['No', 'Nama File', 'Ukuran', 'Tanggal Upload', 'Diupload Oleh', 'Deskripsi']
+      ];
+      
+      if (auditDetails?.notes && auditDetails.notes.length > 0) {
+        auditDetails.notes.forEach((note, index) => {
+          const fileSize = note.fileSize ? `${(note.fileSize / 1024).toFixed(2)} KB` : '-';
+          const uploadDate = note.uploadedAt ? new Date(note.uploadedAt.toDate?.() || note.uploadedAt).toLocaleDateString('id-ID', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }) : '-';
+          
+          notesData.push([
+            index + 1,
+            note.fileName || note.title || 'Tanpa nama',
+            fileSize,
+            uploadDate,
+            note.uploadedBy || '-',
+            note.description || '-'
+          ]);
+        });
+      } else {
+        notesData.push(['Tidak ada data catatan', '', '', '', '', '']);
+      }
+      
+      const notesSheet = XLSX.utils.aoa_to_sheet(notesData);
+      notesSheet['!cols'] = [
+        { wch: 5 },
+        { wch: 35 },
+        { wch: 12 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 40 }
+      ];
+      XLSX.utils.book_append_sheet(workbook, notesSheet, 'Catatan');
       
       return workbook;
       
@@ -933,6 +1210,38 @@ const Laporan = () => {
     } catch (error) {
       console.error('❌ Error downloading report:', error);
       alert(`Gagal mengunduh laporan: ${error.message}`);
+    }
+  };
+
+  const handleDeleteReport = async (report) => {
+    try {
+      // Konfirmasi sebelum menghapus
+      const confirmDelete = window.confirm(
+        `Apakah Anda yakin ingin menghapus laporan "${report.title}"?\n\n` +
+        `Tindakan ini tidak dapat dibatalkan.`
+      );
+      
+      if (!confirmDelete) {
+        return;
+      }
+      
+      console.log('🗑️ Deleting report:', report);
+      setLoading(true);
+      
+      // Hapus laporan dari Firestore
+      await reportService.deleteReport(report.id);
+      console.log('✅ Report deleted successfully');
+      
+      // Refresh data laporan
+      await fetchReportData();
+      
+      alert(`Laporan "${report.title}" berhasil dihapus!`);
+      
+    } catch (error) {
+      console.error('❌ Error deleting report:', error);
+      alert(`Gagal menghapus laporan: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1230,17 +1539,26 @@ const Laporan = () => {
                    <td>{report.type}</td>
                    <td>{report.period}</td>
                    <td>{getStatusBadge(report.status)}</td>
-                   <td>{report.createdBy}</td>
-                   <td>{report.date}</td>
-                   <td>
-                     <button 
-                       className="download-btn"
-                       onClick={() => handleDownloadReport(report)}
-                       title="Download Laporan"
-                     >
-                       📥
-                     </button>
-                   </td>
+                  <td>{report.createdBy}</td>
+                  <td>{report.date}</td>
+                  <td>
+                    <div className="action-buttons">
+                      <button 
+                        className="download-btn"
+                        onClick={() => handleDownloadReport(report)}
+                        title="Download Laporan"
+                      >
+                        📥
+                      </button>
+                      <button 
+                        className="delete-btn"
+                        onClick={() => handleDeleteReport(report)}
+                        title="Hapus Laporan"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
                  </tr>
                ))}
              </tbody>

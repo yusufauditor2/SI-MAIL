@@ -15,6 +15,7 @@ import {
 import { collection, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { COLLECTIONS } from '../constants/collections';
+import { cloudinaryService } from '../services/cloudinaryService';
 import FileUploadModal from '../components/FileUploadModal';
 import './Dokumen.css';
 
@@ -94,6 +95,9 @@ const Dokumen = () => {
             const wpSnap = await getDocs(wpQuery);
             wpSnap.forEach((d) => {
               const data = d.data();
+              // Skip deleted documents
+              if (data.isDeleted) return;
+              
               aggregated.push({
                 id: d.id,
                 fileName: data.fileName || data.name || 'Tanpa Nama',
@@ -106,7 +110,10 @@ const Dokumen = () => {
                 title: data.title || data.fileName || 'Tanpa Judul',
                 description: data.description || '',
                 tags: data.tags || [],
-                auditId: auditId
+                auditId: auditId,
+                cloudinaryId: data.cloudinaryId || data.cloudinaryPublicId || data.fileId,
+                source: 'audit-workpaper',
+                sourceType: 'workPaper'
               });
             });
           } catch (error) {
@@ -119,6 +126,9 @@ const Dokumen = () => {
             const evSnap = await getDocs(evQuery);
             evSnap.forEach((d) => {
               const data = d.data();
+              // Skip deleted documents
+              if (data.isDeleted) return;
+              
               aggregated.push({
                 id: d.id,
                 fileName: data.fileName || data.name || 'Tanpa Nama',
@@ -131,7 +141,10 @@ const Dokumen = () => {
                 title: data.title || data.fileName || 'Tanpa Judul',
                 description: data.description || '',
                 tags: data.tags || [],
-                auditId: auditId
+                auditId: auditId,
+                cloudinaryId: data.cloudinaryId || data.cloudinaryPublicId || data.fileId,
+                source: 'audit-evidence',
+                sourceType: 'evidence'
               });
             });
           } catch (error) {
@@ -149,6 +162,9 @@ const Dokumen = () => {
         const docsSnap = await getDocs(docsQuery);
         docsSnap.forEach((d) => {
           const data = d.data();
+          // Skip deleted documents
+          if (data.isDeleted) return;
+          
           aggregated.push({
             id: d.id,
             fileName: data.fileName || 'Tanpa Nama',
@@ -160,7 +176,10 @@ const Dokumen = () => {
             category: data.category || 'Dokumen',
             title: data.title || data.fileName || 'Tanpa Judul',
             description: data.description || '',
-            tags: data.tags || []
+            tags: data.tags || [],
+            cloudinaryId: data.cloudinaryId || data.cloudinaryPublicId || data.fileId,
+            source: 'documents',
+            sourceType: 'document'
           });
         });
       } catch (error) {
@@ -174,6 +193,9 @@ const Dokumen = () => {
         const legacyWpSnap = await getDocs(legacyWpQuery);
         legacyWpSnap.forEach((d) => {
           const data = d.data();
+          // Skip deleted documents
+          if (data.isDeleted) return;
+          
           aggregated.push({
             id: d.id,
             fileName: data.fileName || data.name || 'Tanpa Nama',
@@ -185,7 +207,10 @@ const Dokumen = () => {
             category: 'Kertas Kerja',
             title: data.title || data.fileName || 'Tanpa Judul',
             description: data.description || '',
-            tags: data.tags || []
+            tags: data.tags || [],
+            cloudinaryId: data.cloudinaryId || data.cloudinaryPublicId || data.fileId,
+            source: 'legacy-workpaper',
+            sourceType: 'workPaper'
           });
         });
 
@@ -194,6 +219,9 @@ const Dokumen = () => {
         const legacyEvSnap = await getDocs(legacyEvQuery);
         legacyEvSnap.forEach((d) => {
           const data = d.data();
+          // Skip deleted documents
+          if (data.isDeleted) return;
+          
           aggregated.push({
             id: d.id,
             fileName: data.fileName || data.name || 'Tanpa Nama',
@@ -205,7 +233,10 @@ const Dokumen = () => {
             category: 'Bukti Audit',
             title: data.title || data.fileName || 'Tanpa Judul',
             description: data.description || '',
-            tags: data.tags || []
+            tags: data.tags || [],
+            cloudinaryId: data.cloudinaryId || data.cloudinaryPublicId || data.fileId,
+            source: 'legacy-evidence',
+            sourceType: 'evidence'
           });
         });
       } catch (error) {
@@ -234,15 +265,50 @@ const Dokumen = () => {
     }
   };
 
-  const handleDeleteDocument = async (documentId) => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus dokumen ini?')) {
-      try {
-        await deleteDoc(doc(db, COLLECTIONS.DOCUMENTS, documentId));
-        await fetchDocuments(); // Refresh the list
-      } catch (error) {
-        console.error('Error deleting document:', error);
-        alert('Gagal menghapus dokumen');
+  const handleDeleteDocument = async (document) => {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus dokumen "${document.fileName}"?`)) {
+      return;
+    }
+
+    try {
+      console.log('Deleting document:', document);
+      
+      // If document is from audit subcollection, use cloudinaryService
+      if (document.auditId && document.sourceType) {
+        console.log(`Deleting from audit ${document.auditId}, type: ${document.sourceType}`);
+        await cloudinaryService.deleteFile(document.auditId, document.sourceType, document.id);
+        console.log('Document deleted successfully from audit subcollection');
+      } 
+      // If document is from top-level documents collection
+      else if (document.source === 'documents') {
+        console.log('Deleting from documents collection');
+        await deleteDoc(doc(db, COLLECTIONS.DOCUMENTS, document.id));
+        console.log('Document deleted successfully from documents collection');
       }
+      // If document is from legacy collections
+      else if (document.source === 'legacy-workpaper') {
+        console.log('Deleting from legacy work_papers collection');
+        await deleteDoc(doc(db, 'work_papers', document.id));
+        console.log('Document deleted successfully from legacy work_papers');
+      }
+      else if (document.source === 'legacy-evidence') {
+        console.log('Deleting from legacy audit_evidence collection');
+        await deleteDoc(doc(db, 'audit_evidence', document.id));
+        console.log('Document deleted successfully from legacy evidence');
+      }
+      else {
+        throw new Error('Unknown document source');
+      }
+      
+      // Show success message
+      alert('Dokumen berhasil dihapus!');
+      
+      // Refresh the list
+      await fetchDocuments();
+      
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      alert(`Gagal menghapus dokumen: ${error.message}`);
     }
   };
 
@@ -418,7 +484,7 @@ const Dokumen = () => {
                       <button 
                         className="action-btn delete" 
                         title="Hapus"
-                        onClick={() => handleDeleteDocument(doc.id)}
+                        onClick={() => handleDeleteDocument(doc)}
                       >
                         <FiTrash2 />
                       </button>
@@ -446,7 +512,7 @@ const Dokumen = () => {
                     <button 
                       className="action-btn delete" 
                       title="Hapus"
-                      onClick={() => handleDeleteDocument(doc.id)}
+                      onClick={() => handleDeleteDocument(doc)}
                     >
                       <FiTrash2 />
                     </button>

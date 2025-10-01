@@ -14,12 +14,16 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated(); // All authenticated users can read users (for team management)
+      allow write: if isAdmin(); // Only admin can modify users
     }
 
     // Audits collection (unified)
     match /audits/{auditId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated(); // Authenticated users can create audits
+      allow update: if isAuthenticated(); // Authenticated users can update audits (including team)
+      allow delete: if isAdmin(); // Only admin can delete audits
       allow read: if true; // Temporary for testing
     }
 

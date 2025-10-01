@@ -11,18 +11,24 @@ import {
   FiArchive
 } from 'react-icons/fi';
 import { cloudinaryService } from '../services/cloudinaryService';
+import FileDetailModal from './FileDetailModal';
 
 const FileList = ({ auditId, fileType, onFileDeleted }) => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   const loadFiles = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
+      console.log(`[FileList] Loading files for auditId: ${auditId}, fileType: ${fileType}`);
+      
       const auditFiles = await cloudinaryService.getAuditFiles(auditId);
+      console.log(`[FileList] All audit files:`, auditFiles);
       
       // Filter files berdasarkan type
       let filteredFiles = [];
@@ -43,6 +49,8 @@ const FileList = ({ auditId, fileType, onFileDeleted }) => {
           filteredFiles = [];
       }
       
+      console.log(`[FileList] Filtered files for ${fileType}:`, filteredFiles);
+      
       // Sort files by upload date (newest first)
       filteredFiles.sort((a, b) => {
         const dateA = a.uploadedAt?.toDate?.() || a.uploadedAt || a.createdAt?.toDate?.() || a.createdAt || new Date(0);
@@ -50,9 +58,10 @@ const FileList = ({ auditId, fileType, onFileDeleted }) => {
         return dateB - dateA;
       });
       
+      console.log(`[FileList] Final sorted files (${filteredFiles.length}):`, filteredFiles);
       setFiles(filteredFiles);
     } catch (error) {
-      console.error('Error loading files:', error);
+      console.error('[FileList] Error loading files:', error);
       setError('Gagal memuat daftar file');
     } finally {
       setLoading(false);
@@ -87,14 +96,26 @@ const FileList = ({ auditId, fileType, onFileDeleted }) => {
   const handleDelete = async (fileId) => {
     if (window.confirm('Apakah Anda yakin ingin menghapus file ini?')) {
       try {
+        console.log('[FileList] Deleting file:', fileId);
         await cloudinaryService.deleteFile(auditId, fileType, fileId);
         setFiles(prev => prev.filter(f => f.id !== fileId));
         onFileDeleted && onFileDeleted();
+        alert('File berhasil dihapus');
       } catch (error) {
-        console.error('Error deleting file:', error);
-        alert('Gagal menghapus file');
+        console.error('[FileList] Error deleting file:', error);
+        alert('Gagal menghapus file: ' + error.message);
       }
     }
+  };
+
+  const handleViewDetail = (file) => {
+    setSelectedFile(file);
+    setDetailModalOpen(true);
+  };
+
+  const handleCloseDetailModal = () => {
+    setDetailModalOpen(false);
+    setSelectedFile(null);
   };
 
   const getFileIcon = (fileType) => {
@@ -172,62 +193,71 @@ const FileList = ({ auditId, fileType, onFileDeleted }) => {
   }
 
   return (
-    <div className="file-list">
-      {files.map((file) => (
-        <div key={file.id} className="file-item">
-          <div className="file-info">
-            <div className="file-icon">
-              {getFileIcon(file.fileType || file.recordingType || file.type)}
-            </div>
-            <div className="file-details">
-              <div className="file-name">
-                {file.fileName || file.recordingFileName || file.title || 'File tanpa nama'}
+    <>
+      <div className="file-list">
+        {files.map((file) => (
+          <div key={file.id} className="file-item">
+            <div className="file-info">
+              <div className="file-icon">
+                {getFileIcon(file.fileType || file.recordingType || file.type)}
               </div>
-              <div className="file-meta">
-                <span className="file-size">
-                  {formatFileSize(file.fileSize || file.recordingSize || file.size)}
-                </span>
-                <span className="file-date">
-                  {formatDate(file.uploadedAt || file.createdAt)}
-                </span>
-                {file.uploadedBy && (
-                  <span className="file-uploader">
-                    oleh {file.uploadedBy}
+              <div className="file-details">
+                <div className="file-name">
+                  {file.title || file.fileName || file.recordingFileName || 'File tanpa nama'}
+                </div>
+                <div className="file-meta">
+                  <span className="file-size">
+                    {formatFileSize(file.fileSize || file.recordingSize || file.size)}
                   </span>
+                  <span className="file-date">
+                    {formatDate(file.uploadedAt || file.createdAt)}
+                  </span>
+                  {file.uploadedBy && (
+                    <span className="file-uploader">
+                      oleh {file.uploadedBy}
+                    </span>
+                  )}
+                </div>
+                {file.description && (
+                  <div className="file-description">{file.description}</div>
                 )}
               </div>
-              {file.description && (
-                <div className="file-description">{file.description}</div>
-              )}
+            </div>
+            
+            <div className="file-actions">
+              <button 
+                className="action-btn view"
+                onClick={() => handleViewDetail(file)}
+                title="Lihat detail"
+              >
+                <FiEye />
+              </button>
+              <button 
+                className="action-btn download"
+                onClick={() => handleDownload(file)}
+                title="Download file"
+              >
+                <FiDownload />
+              </button>
+              <button 
+                className="action-btn delete"
+                onClick={() => handleDelete(file.id)}
+                title="Hapus file"
+              >
+                <FiTrash2 />
+              </button>
             </div>
           </div>
-          
-          <div className="file-actions">
-            <button 
-              className="action-btn view"
-              onClick={() => window.open(file.cloudinaryUrl || file.fileUrl || file.recordingUrl, '_blank')}
-              title="Lihat file"
-            >
-              <FiEye />
-            </button>
-            <button 
-              className="action-btn download"
-              onClick={() => handleDownload(file)}
-              title="Download file"
-            >
-              <FiDownload />
-            </button>
-            <button 
-              className="action-btn delete"
-              onClick={() => handleDelete(file.id)}
-              title="Hapus file"
-            >
-              <FiTrash2 />
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+
+      <FileDetailModal
+        isOpen={detailModalOpen}
+        onClose={handleCloseDetailModal}
+        file={selectedFile}
+        fileType={fileType}
+      />
+    </>
   );
 };
 

@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    function isAuditor() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'Auditor'];
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated(); // All authenticated users can read users (for team management)
+      allow write: if isAdmin(); // Only admin can modify users
+    }
+
+    // Audits collection (unified)
+    match /audits/{auditId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuditor(); // Auditors and admins can create audits
+      allow update: if isAuditor(); // Auditors and admins can update audits (including team)
+      allow delete: if isAdmin(); // Only admin can delete audits
+    }
+
+    // Audit Findings collection
+    match /audit_findings/{findingId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    // Work Papers subcollection
+    match /audits/{auditId}/workPapers/{workPaperId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    // Evidence subcollection
+    match /audits/{auditId}/evidence/{evidenceId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    // Interviews subcollection
+    match /audits/{auditId}/interviews/{interviewId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    // Findings subcollection
+    match /audits/{auditId}/findings/{findingId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    // Notes subcollection
+    match /audits/{auditId}/notes/{noteId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    // File uploads tracking collection
+    match /file-uploads/{uploadId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    // Documents collection
+    match /documents/{documentId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    // Follow-ups collection
+    match /follow_ups/{followUpId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    // Reports collection
+    match /reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    // Legacy collections (for backward compatibility)
+    match /audit_plans/{planId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    match /work_papers/{paperId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    match /audit_evidence/{evidenceId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    match /audit_notes/{noteId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuditor();
+      allow delete: if isAdmin();
+    }
+
+    // App Settings collection
+    // Public read so unauthenticated pages (e.g., login) can load branding
+    // Write remains restricted to admins only
+    match /app_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
+

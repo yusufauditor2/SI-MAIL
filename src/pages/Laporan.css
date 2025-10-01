@@ -498,18 +498,42 @@
   color: #6b7280;
 }
 
-.download-btn {
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.download-btn,
+.delete-btn {
   background: none;
   border: none;
   font-size: 18px;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .download-btn:hover {
-  background: #f3f4f6;
+  background: #dbeafe;
+  transform: scale(1.1);
+}
+
+.delete-btn:hover {
+  background: #fee2e2;
+  transform: scale(1.1);
+}
+
+.delete-btn:active {
+  transform: scale(0.95);
+}
+
+.download-btn:active {
+  transform: scale(0.95);
 }
 
 /* Responsive for report table */

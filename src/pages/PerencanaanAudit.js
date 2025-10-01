@@ -17,6 +17,7 @@ import {
   FiCalendar as FiCalendarIcon
 } from 'react-icons/fi';
 import { auditService } from '../services/firebaseService';
+import TeamManagementModal from '../components/TeamManagementModal';
 
 const PerencanaanAudit = () => {
   const [viewMode, setViewMode] = useState('table');
@@ -24,6 +25,7 @@ const PerencanaanAudit = () => {
   const [statusFilter, setStatusFilter] = useState('Semua Status');
   const [priorityFilter, setPriorityFilter] = useState('Semua Prioritas');
   const [showModal, setShowModal] = useState(false);
+  const [showTeamModal, setShowTeamModal] = useState(false);
   const [auditPlans, setAuditPlans] = useState([]);
   const [summaryStats, setSummaryStats] = useState({
     total: 0,
@@ -44,14 +46,14 @@ const PerencanaanAudit = () => {
     type: '',
     priority: 'Sedang',
     status: 'Draft',
-    auditor: '',
     startDate: '',
     endDate: '',
     description: '',
     scope: '',
     objectives: '',
     budget: '',
-    riskLevel: 'Medium'
+    riskLevel: 'Medium',
+    team: [] // Team members array
   });
 
   // Load audit plans from Firestore
@@ -125,14 +127,14 @@ const PerencanaanAudit = () => {
       type: '',
       priority: 'Sedang',
       status: 'Draft',
-      auditor: '',
       startDate: '',
       endDate: '',
       description: '',
       scope: '',
       objectives: '',
       budget: '',
-      riskLevel: 'Medium'
+      riskLevel: 'Medium',
+      team: []
     });
     setShowModal(true);
   };
@@ -150,14 +152,14 @@ const PerencanaanAudit = () => {
       type: plan.type,
       priority: plan.priority,
       status: plan.status,
-      auditor: plan.auditor,
       startDate: startDate,
       endDate: endDate,
       description: plan.description,
       scope: plan.scope,
       objectives: plan.objectives,
       budget: plan.budget,
-      riskLevel: plan.riskLevel
+      riskLevel: plan.riskLevel,
+      team: plan.team || []
     });
     setShowModal(true);
   };
@@ -175,16 +177,29 @@ const PerencanaanAudit = () => {
       type: plan.type,
       priority: plan.priority,
       status: plan.status,
-      auditor: plan.auditor,
       startDate: startDate,
       endDate: endDate,
       description: plan.description,
       scope: plan.scope,
       objectives: plan.objectives,
       budget: plan.budget,
-      riskLevel: plan.riskLevel
+      riskLevel: plan.riskLevel,
+      team: plan.team || []
     });
     setShowModal(true);
+  };
+
+  // Handler for team management
+  const handleOpenTeamModal = () => {
+    setShowTeamModal(true);
+  };
+
+  const handleSaveTeam = (team) => {
+    setFormData(prev => ({
+      ...prev,
+      team: team
+    }));
+    setShowTeamModal(false);
   };
 
   const handleSubmit = async (e) => {
@@ -198,16 +213,21 @@ const PerencanaanAudit = () => {
       const startDate = formData.startDate ? new Date(formData.startDate) : new Date();
       const endDate = formData.endDate ? new Date(formData.endDate) : new Date();
       
+      // Get auditor name from team leader (Ketua Tim)
+      const teamLeader = formData.team?.find(member => member.role === 'Ketua Tim');
+      const auditor = teamLeader ? teamLeader.name : '';
+      
       if (modalMode === 'create') {
         // Convert budget to number and add required fields
         const planData = {
           ...formData,
+          auditor: auditor, // Set auditor from team leader
           period: period,
           budget: parseFloat(formData.budget) || 0,
           startDate: startDate,
           endDate: endDate,
           progress: 0, // Default progress for new plans
-          team: [], // Default empty team
+          team: formData.team || [], // Team from form
           workPapers: [], // Default empty work papers
           evidence: [], // Default empty evidence
           notes: [] // Default empty notes
@@ -220,6 +240,7 @@ const PerencanaanAudit = () => {
         // Convert budget to number and update dates
         const planData = {
           ...formData,
+          auditor: auditor, // Update auditor from team leader
           period: period,
           budget: parseFloat(formData.budget) || 0,
           startDate: startDate,
@@ -237,14 +258,14 @@ const PerencanaanAudit = () => {
         type: '',
         priority: 'Sedang',
         status: 'Draft',
-        auditor: '',
         startDate: '',
         endDate: '',
         description: '',
         scope: '',
         objectives: '',
         budget: '',
-        riskLevel: 'Medium'
+        riskLevel: 'Medium',
+        team: []
       });
       setShowModal(false);
       setSelectedPlan(null);
@@ -284,14 +305,14 @@ const PerencanaanAudit = () => {
       type: '',
       priority: 'Sedang',
       status: 'Draft',
-      auditor: '',
       startDate: '',
       endDate: '',
       description: '',
       scope: '',
       objectives: '',
       budget: '',
-      riskLevel: 'Medium'
+      riskLevel: 'Medium',
+      team: []
     });
   };
 
@@ -446,16 +467,19 @@ const PerencanaanAudit = () => {
             </div>
             
             <div className="form-group">
-              <label htmlFor="auditor">Auditor</label>
-              <input
-                type="text"
-                id="auditor"
-                name="auditor"
-                value={formData.auditor}
+              <label htmlFor="riskLevel">Tingkat Risiko</label>
+              <select
+                id="riskLevel"
+                name="riskLevel"
+                value={formData.riskLevel}
                 onChange={handleInputChange}
+                required
                 disabled={isViewMode}
-                placeholder="Nama auditor yang bertanggung jawab"
-              />
+              >
+                <option value="Low">Rendah</option>
+                <option value="Medium">Sedang</option>
+                <option value="High">Tinggi</option>
+              </select>
             </div>
           </div>
 
@@ -495,36 +519,67 @@ const PerencanaanAudit = () => {
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="budget">Anggaran (Rp)</label>
-              <input
-                type="number"
-                id="budget"
-                name="budget"
-                value={formData.budget}
-                onChange={handleInputChange}
-                required
-                disabled={isViewMode}
-                placeholder="0"
-                min="0"
-              />
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="riskLevel">Tingkat Risiko</label>
-              <select
-                id="riskLevel"
-                name="riskLevel"
-                value={formData.riskLevel}
-                onChange={handleInputChange}
-                required
-                disabled={isViewMode}
-              >
-                <option value="Low">Rendah</option>
-                <option value="Medium">Sedang</option>
-                <option value="High">Tinggi</option>
-              </select>
+          <div className="form-group">
+            <label htmlFor="budget">Anggaran (Rp)</label>
+            <input
+              type="number"
+              id="budget"
+              name="budget"
+              value={formData.budget}
+              onChange={handleInputChange}
+              required
+              disabled={isViewMode}
+              placeholder="0"
+              min="0"
+            />
+          </div>
+
+          {/* Tim Audit Section */}
+          <div className="form-group team-section">
+            <label>
+              <FiUsers />
+              Tim Audit
+            </label>
+            <div className="team-management">
+              <div className="team-info">
+                {formData.team && formData.team.length > 0 ? (
+                  <div className="team-members-summary">
+                    <div className="team-count-badge">
+                      {formData.team.length} Anggota Tim
+                    </div>
+                    <div className="team-members-list-mini">
+                      {formData.team.map((member, index) => (
+                        <div key={index} className="team-member-mini">
+                          <div className="member-avatar-mini">
+                            {member.name?.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="member-info-mini">
+                            <span className="member-name">{member.name}</span>
+                            {member.role === 'Ketua Tim' && (
+                              <span className="leader-badge">★ Ketua</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="no-team">
+                    <FiUsers size={24} />
+                    <p>Belum ada anggota tim</p>
+                  </div>
+                )}
+              </div>
+              {!isViewMode && (
+                <button
+                  type="button"
+                  className="manage-team-btn"
+                  onClick={handleOpenTeamModal}
+                >
+                  <FiUsers />
+                  Kelola Tim Audit
+                </button>
+              )}
             </div>
           </div>
 
@@ -823,6 +878,14 @@ const PerencanaanAudit = () => {
           {renderModalContent()}
         </div>
       )}
+
+      {/* Team Management Modal */}
+      <TeamManagementModal
+        isOpen={showTeamModal}
+        onClose={() => setShowTeamModal(false)}
+        currentTeam={formData.team}
+        onSaveTeam={handleSaveTeam}
+      />
     </div>
   );
 };

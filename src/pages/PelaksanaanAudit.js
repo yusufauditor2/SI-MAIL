@@ -56,6 +56,7 @@ const PelaksanaanAudit = () => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadType, setUploadType] = useState('workPaper');
   const [uploadTitle, setUploadTitle] = useState('');
+  const [fileListRefreshKey, setFileListRefreshKey] = useState(0);
 
   // Load active audits from Firestore
   // Note: This page uses the unified 'audits' collection with execution statuses
@@ -264,8 +265,8 @@ const PelaksanaanAudit = () => {
     if (selectedAudit) {
       refreshSelectedAudit(selectedAudit);
     }
-    // Force re-render of file lists
-    setActiveTab(activeTab);
+    // Force re-render of file lists by updating refresh key
+    setFileListRefreshKey(prev => prev + 1);
   };
 
   const handleFileDeleted = () => {
@@ -273,6 +274,8 @@ const PelaksanaanAudit = () => {
     if (selectedAudit) {
       refreshSelectedAudit(selectedAudit);
     }
+    // Force re-render of file lists by updating refresh key
+    setFileListRefreshKey(prev => prev + 1);
   };
 
   const handleUploadModalClose = () => {
@@ -448,6 +451,40 @@ const PelaksanaanAudit = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Recent Files Section */}
+              <div className="recent-files-section">
+                <h3>File Terbaru</h3>
+                <div className="file-tabs">
+                  <div className="file-tab-section">
+                    <h4><FiFileText /> Kertas Kerja</h4>
+                    <FileList 
+                      key={`overview-workPaper-${fileListRefreshKey}`}
+                      auditId={selectedAudit.id} 
+                      fileType="workPaper"
+                      onFileDeleted={handleFileDeleted}
+                    />
+                  </div>
+                  <div className="file-tab-section">
+                    <h4><FiPaperclip /> Bukti Audit</h4>
+                    <FileList 
+                      key={`overview-evidence-${fileListRefreshKey}`}
+                      auditId={selectedAudit.id} 
+                      fileType="evidence"
+                      onFileDeleted={handleFileDeleted}
+                    />
+                  </div>
+                  <div className="file-tab-section">
+                    <h4><FiMessageSquare /> Catatan</h4>
+                    <FileList 
+                      key={`overview-note-${fileListRefreshKey}`}
+                      auditId={selectedAudit.id} 
+                      fileType="note"
+                      onFileDeleted={handleFileDeleted}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -473,6 +510,7 @@ const PelaksanaanAudit = () => {
               </div>
               <div className="workpaper-list">
                 <FileList 
+                  key={`workPaper-${fileListRefreshKey}`}
                   auditId={selectedAudit.id} 
                   fileType="workPaper"
                   onFileDeleted={handleFileDeleted}
@@ -503,6 +541,7 @@ const PelaksanaanAudit = () => {
               </div>
               <div className="evidence-list">
                 <FileList 
+                  key={`evidence-${fileListRefreshKey}`}
                   auditId={selectedAudit.id} 
                   fileType="evidence"
                   onFileDeleted={handleFileDeleted}
@@ -580,6 +619,7 @@ const PelaksanaanAudit = () => {
               </div>
               <div className="notes-list">
                 <FileList 
+                  key={`note-${fileListRefreshKey}`}
                   auditId={selectedAudit.id} 
                   fileType="note"
                   onFileDeleted={handleFileDeleted}
